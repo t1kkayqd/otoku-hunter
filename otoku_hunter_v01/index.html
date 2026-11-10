@@ -6,7 +6,27 @@
 <main class="wrap"><div class="stats"><div class="stat"><span class="muted">収集候補</span><strong id="count">0</strong></div><div class="stat"><span class="muted">あとで見る</span><strong id="saved">0</strong></div><div class="stat"><span class="muted">獲得記録</span><strong id="earned">0 pt</strong></div></div>
 <div class="note"><b>重要：</b>自動収集は見出しによる「候補」抽出です。無料・応募資格・期限・獲得条件は未確認。必ず公式ページで確認してください。広告視聴の自動化、アンケートの代行回答、無断の自動応募は行いません。</div>
 <section class="panel"><h2>候補を探す</h2><div class="controls"><input id="q" type="search" placeholder="キーワードで絞り込む"><select id="type"><option value="">すべての種類</option><option>楽天ポイント</option><option>Vポイント</option><option>ポイント</option><option>懸賞</option><option>無料サンプル</option><option>キャンペーン</option><option>手動追加</option></select><select id="state"><option value="">すべての状態</option><option>未確認</option><option>あとで見る</option><option>応募済み</option><option>獲得済み</option><option>除外</option></select><button id="refresh">更新</button></div><div class="muted mini" id="updated" style="margin-top:10px"></div></section>
-<section class="panel"><h2>自分で案件を追加</h2><form id="add"><div class="add-grid"><input id="title" placeholder="案件名" required maxlength="160"><input id="url" type="url" placeholder="https:// 公式応募URL" required><select id="cat"><option>楽天ポイント</option><option>Vポイント</option><option>ポイント</option><option>懸賞</option><option>無料サンプル</option><option>キャンペーン</option></select><input id="amount" type="number" min="0" step="1" placeholder="獲得ポイント（不明なら空欄）"></div><button class="primary" style="margin-top:10px">追加</button></form></section>
+<section class="panel">
+ <h2>自分で案件を追加</h2>
+ <p class="muted">懸賞を探して、気になった案件の公式応募URLを登録できます。</p>
+ <nav class="controls" aria-label="手動登録用の懸賞サイト" style="margin-bottom:14px">
+  <a href="https://www.chance.com/present/" target="_blank" rel="noopener noreferrer">チャンスイット</a>
+  <a href="https://www.dreammail.jp/presents/listing" target="_blank" rel="noopener noreferrer">ドリームメール</a>
+  <a href="https://kenshoresearch.com/" target="_blank" rel="noopener noreferrer">懸賞リサーチ</a>
+ </nav>
+ <form id="add">
+  <div class="add-grid"><input id="title" placeholder="案件名" required maxlength="160"><input id="url" type="url" placeholder="https:// 公式応募URL" required><select id="cat"><option>楽天ポイント</option><option>Vポイント</option><option>ポイント</option><option>懸賞</option><option>無料サンプル</option><option>キャンペーン</option></select><input id="amount" type="number" min="0" step="1" placeholder="獲得ポイント（不明なら空欄）"></div>
+  <fieldset style="min-width:0;margin:12px 0 0;border:1px solid #dce5ee;border-radius:9px">
+   <legend class="muted">懸賞の詳細（任意）</legend>
+   <div class="add-grid">
+    <label>締切<input id="deadline" type="date"></label>
+    <label>当選人数<input id="winners" type="text" maxlength="40" placeholder="例：10名、5組10名"></label>
+    <label>応募形式<input id="entry-method" type="text" maxlength="80" placeholder="例：Webフォーム、X、はがき"></label>
+   </div>
+  </fieldset>
+  <button class="primary" style="margin-top:10px">追加</button>
+ </form>
+</section>
 <section class="panel"><div class="controls" style="justify-content:space-between;align-items:center"><h2 style="margin:0">案件一覧</h2><div><button id="export">記録を保存</button> <label style="display:inline-block;cursor:pointer;border:1px solid #ccd5dd;padding:9px;border-radius:9px;background:white">記録を読込<input id="import" type="file" accept="application/json" style="display:none"></label></div></div></section><div id="results" class="results"></div><div class="footer">状態とポイント記録は、このブラウザ内にのみ保存。スマホとPC間では自動同期されません。共有端末での利用に注意。GitHub Pagesの公開サイトに個人情報を載せないでください。</div></main>
 <script>
 'use strict';
@@ -47,11 +67,30 @@ function render(){const items=all(),q=$('q').value.trim().toLowerCase(),cat=$('t
  $('earned').textContent=items.filter(x=>status(x)==='獲得済み').reduce((sum,x)=>sum+Number(user.points[x.id]||0),0).toLocaleString('ja-JP')+' pt';
  const root=$('results');root.replaceChildren();if(!filtered.length){root.append(el('div','panel','該当する案件はありません。収集前、または検索条件が厳しい可能性があります。'));return}
  for(const x of filtered){const card=el('article','item'),chips=el('div','chips');['種別：'+x.category,'状態：'+status(x),x.source||'手動追加',x.published||'日付不明'].forEach(t=>chips.append(el('span','chip',t)));card.append(chips);
+ for(const [label,value] of [['締切',x.deadline],['当選人数',x.winners],['応募形式',x.entryMethod]]){
+  if(typeof value==='string'&&value)chips.append(el('span','chip',label+'：'+value));
+ }
  const h=el('h3');const a=el('a',null,x.title);a.href=safeUrl(x.url)||'#';a.target='_blank';a.rel='noopener noreferrer';h.append(a);card.append(h);
  card.append(el('div','muted mini','リンク先の応募条件を確認してから参加してください。'));
  const actions=el('div','actions');for(const [label,v] of [['あとで見る','あとで見る'],['応募済み','応募済み'],['獲得済み','獲得済み'],['除外','除外'],['未確認に戻す','未確認']]){const b=el('button',null,label);b.onclick=()=>changeStatus(x,v);actions.append(b)}card.append(actions);root.append(card)} }
 async function refresh(){const label=$('updated');label.textContent='収集データを読み込み中…';try{const r=await fetch('./data/leads.json?t='+Date.now(),{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);const data=await r.json();base=(data.leads||[]).filter(x=>x&&x.id&&x.title&&safeUrl(x.url));stamp=data.updated||'';label.textContent=stamp?'最終収集：'+new Date(stamp).toLocaleString('ja-JP')+'（候補は要確認）':'まだ自動収集は実行されていません。GitHub Actionsを手動実行してください。'}catch(e){label.textContent='収集ファイルを取得できません（ローカル閲覧時は手動登録を利用できます）。'}keepTrackedCandidates();render()}
-$('add').onsubmit=e=>{e.preventDefault();const title=$('title').value.trim(),url=safeUrl($('url').value),p=$('amount').value;if(!url){alert('https:// で始まるURLを入力してください');return}const id='manual-'+Date.now().toString(36);user.manual.unshift({id,title,url,category:$('cat').value,source:'手動追加',published:new Date().toISOString().slice(0,10)});if(p!==''&&Number(p)>=0)user.points[id]=Math.floor(Number(p));save();e.target.reset();render()};
+$('add').onsubmit=e=>{
+ e.preventDefault();
+ const title=$('title').value.trim(),url=safeUrl($('url').value),p=$('amount').value;
+ if(!url){alert('https:// で始まるURLを入力してください');return}
+ const id='manual-'+Date.now().toString(36);
+ user.manual.unshift({
+  id,title,url,category:$('cat').value,source:'手動追加',
+  published:new Date().toISOString().slice(0,10),
+  deadline:$('deadline').value,
+  winners:$('winners').value.trim(),
+  entryMethod:$('entry-method').value.trim(),
+ });
+ if(p!==''&&Number(p)>=0)user.points[id]=Math.floor(Number(p));
+ save();
+ e.target.reset();
+ render();
+};
 $('export').onclick=()=>{const blob=new Blob([JSON.stringify(user,null,2)],{type:'application/json'}),u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download='otoku-hunter-records.json';a.click();setTimeout(()=>URL.revokeObjectURL(u),2000)};
 $('import').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const obj=JSON.parse(await f.text());if(!obj||typeof obj.states!=='object'||!Array.isArray(obj.manual))throw Error('format');if(!confirm('今の端末の記録を、読み込んだ記録で上書きしますか？'))return;user=readRecords(obj);keepTrackedCandidates();save();render()}catch{alert('記録ファイルを読み込めませんでした。')}finally{e.target.value=''}};
 ['q','type','state'].forEach(id=>$(id).addEventListener('input',render));$('refresh').onclick=refresh;refresh();
