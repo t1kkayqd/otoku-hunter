@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#132337"><title>お得ハンター v0.1</title>
+<style>
+:root{font-family:system-ui,-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,sans-serif;color:#1e2b36;background:#f1f5f9}*{box-sizing:border-box}body{margin:0}.wrap{max-width:1040px;margin:auto;padding:24px 16px 80px}header{color:#fff;background:#132337;padding:24px 0}header .wrap{padding-top:0;padding-bottom:0}header h1{margin:0 0 8px;font-size:27px}header p{margin:0;color:#cbd5e1;font-size:14px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0}.stat,.panel,.item{background:#fff;border:1px solid #dce5ee;border-radius:14px;padding:16px;box-shadow:0 2px 8px #1b304309}.stat strong{display:block;font-size:26px}.muted{color:#627184;font-size:13px}.panel{margin-bottom:14px}h2{margin:0 0 12px;font-size:17px}.controls{display:flex;gap:8px;flex-wrap:wrap}input,select,button{font:inherit;border:1px solid #ccd5dd;border-radius:9px;padding:10px;background:#fff;min-height:42px}input[type=search]{flex:2;min-width:180px}select{flex:1;min-width:128px}button{cursor:pointer}button.primary{background:#146ea3;color:white;border-color:#146ea3}button:hover{filter:brightness(.97)}.results{display:grid;gap:12px}.item h3{margin:6px 0 10px;font-size:16px;line-height:1.5}.item a{color:#086c9c}.chips{display:flex;gap:6px;flex-wrap:wrap}.chip{background:#edf3f7;border-radius:100px;padding:4px 8px;font-size:11px;color:#475569}.item .actions{display:flex;gap:7px;margin-top:12px;flex-wrap:wrap}.item button{font-size:13px;padding:8px 10px;min-height:36px}.note{border-left:3px solid #e4a22a;padding:8px 12px;background:#fff8e6;font-size:13px;margin:14px 0}.mini{font-size:12px}.add-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.add-grid input,.add-grid select{width:100%}.footer{margin-top:18px;color:#586779;font-size:12px}.hidden{display:none}@media(max-width:600px){.stats{gap:8px}.stat{padding:11px}.stat strong{font-size:21px}.add-grid{grid-template-columns:1fr}.wrap{padding:14px 12px 60px}header h1{font-size:23px}}
+</style></head><body><header><div class="wrap"><h1>🎁 お得ハンター <small style="font-size:12px;font-weight:normal">v0.1</small></h1><p>案件探しを自動化。応募・回答は自分で判断。</p></div></header>
+<main class="wrap"><div class="stats"><div class="stat"><span class="muted">収集候補</span><strong id="count">0</strong></div><div class="stat"><span class="muted">あとで見る</span><strong id="saved">0</strong></div><div class="stat"><span class="muted">獲得記録</span><strong id="earned">0 pt</strong></div></div>
+<div class="note"><b>重要：</b>自動収集は見出しによる「候補」抽出です。無料・応募資格・期限・獲得条件は未確認。必ず公式ページで確認してください。広告視聴の自動化、アンケートの代行回答、無断の自動応募は行いません。</div>
+<section class="panel"><h2>候補を探す</h2><div class="controls"><input id="q" type="search" placeholder="キーワードで絞り込む"><select id="type"><option value="">すべての種類</option><option>ポイント</option><option>懸賞</option><option>無料サンプル</option><option>キャンペーン</option><option>手動追加</option></select><select id="state"><option value="">すべての状態</option><option>未確認</option><option>あとで見る</option><option>応募済み</option><option>獲得済み</option><option>除外</option></select><button id="refresh">更新</button></div><div class="muted mini" id="updated" style="margin-top:10px"></div></section>
+<section class="panel"><h2>自分で案件を追加</h2><form id="add"><div class="add-grid"><input id="title" placeholder="案件名" required maxlength="160"><input id="url" type="url" placeholder="https:// 公式応募URL" required><select id="cat"><option>ポイント</option><option>懸賞</option><option>無料サンプル</option><option>キャンペーン</option></select><input id="amount" type="number" min="0" step="1" placeholder="獲得ポイント（不明なら空欄）"></div><button class="primary" style="margin-top:10px">追加</button></form></section>
+<section class="panel"><div class="controls" style="justify-content:space-between;align-items:center"><h2 style="margin:0">案件一覧</h2><div><button id="export">記録を保存</button> <label style="display:inline-block;cursor:pointer;border:1px solid #ccd5dd;padding:9px;border-radius:9px;background:white">記録を読込<input id="import" type="file" accept="application/json" style="display:none"></label></div></div></section><div id="results" class="results"></div><div class="footer">状態とポイント記録は、このブラウザ内にのみ保存。スマホとPC間では自動同期されません。共有端末での利用に注意。GitHub Pagesの公開サイトに個人情報を載せないでください。</div></main>
+<script>
+'use strict';
+const KEY='otoku-hunter-v1';let base=[],stamp='',user={states:{},points:{},manual:[],kept:{}};
+function readRecords(s){return {states:s.states||{},points:s.points||{},manual:s.manual||[],kept:s.kept||{}}}
+try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&typeof s==='object')user=readRecords(s)}catch{}
+const $=id=>document.getElementById(id);const save=()=>localStorage.setItem(KEY,JSON.stringify(user));
+const safeUrl=s=>{try{const u=new URL(s);return u.protocol==='https:'?u.href:null}catch{return null}};
+const all=()=>[...user.manual,...base,...Object.values(user.kept)].filter((x,i,a)=>a.findIndex(y=>y.id===x.id)===i);
+const status=x=>user.states[x.id]||'未確認';
+function keepTrackedCandidates(){
+ let changed=false;
+ for(const x of base){
+  if(status(x)==='未確認'||Object.hasOwn(user.kept,x.id))continue;
+  user.kept[x.id]=x;
+  changed=true;
+ }
+ if(changed)save();
+}
+function changeStatus(x,value){
+ if(value==='獲得済み'){
+  const points=prompt('実際に獲得したポイント（数字、不明なら0）',user.points[x.id]||'0');
+  if(points===null)return;
+  const amount=Number(points);
+  if(!Number.isFinite(amount)||amount<0){alert('0以上の数字を入力してください');return}
+  user.points[x.id]=Math.floor(amount);
+ }
+ user.states[x.id]=value;
+ if(value==='未確認')delete user.kept[x.id];
+ else if(!user.manual.some(item=>item.id===x.id))user.kept[x.id]=x;
+ save();
+ render();
+}
+function el(tag,cls,text){let a=document.createElement(tag);if(cls)a.className=cls;if(text!==undefined)a.textContent=text;return a}
+function render(){const items=all(),q=$('q').value.trim().toLowerCase(),cat=$('type').value,st=$('state').value;
+ const filtered=items.filter(x=>(!q||(x.title+' '+x.source).toLowerCase().includes(q))&&(!cat||x.category===cat)&&(!st||status(x)===st)&&status(x)!=='除外' || (st==='除外'&&status(x)==='除外'&&(!q||x.title.toLowerCase().includes(q))&&(!cat||cat===x.category)));
+ $('count').textContent=items.length;$('saved').textContent=items.filter(x=>status(x)==='あとで見る').length;
+ $('earned').textContent=items.filter(x=>status(x)==='獲得済み').reduce((sum,x)=>sum+Number(user.points[x.id]||0),0).toLocaleString('ja-JP')+' pt';
+ const root=$('results');root.replaceChildren();if(!filtered.length){root.append(el('div','panel','該当する案件はありません。収集前、または検索条件が厳しい可能性があります。'));return}
+ for(const x of filtered){const card=el('article','item'),chips=el('div','chips');['種別：'+x.category,'状態：'+status(x),x.source||'手動追加',x.published||'日付不明'].forEach(t=>chips.append(el('span','chip',t)));card.append(chips);
+ const h=el('h3');const a=el('a',null,x.title);a.href=safeUrl(x.url)||'#';a.target='_blank';a.rel='noopener noreferrer';h.append(a);card.append(h);
+ card.append(el('div','muted mini','リンク先の応募条件を確認してから参加してください。'));
+ const actions=el('div','actions');for(const [label,v] of [['あとで見る','あとで見る'],['応募済み','応募済み'],['獲得済み','獲得済み'],['除外','除外'],['未確認に戻す','未確認']]){const b=el('button',null,label);b.onclick=()=>changeStatus(x,v);actions.append(b)}card.append(actions);root.append(card)} }
+async function refresh(){const label=$('updated');label.textContent='収集データを読み込み中…';try{const r=await fetch('./data/leads.json?t='+Date.now(),{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);const data=await r.json();base=(data.leads||[]).filter(x=>x&&x.id&&x.title&&safeUrl(x.url));stamp=data.updated||'';label.textContent=stamp?'最終収集：'+new Date(stamp).toLocaleString('ja-JP')+'（候補は要確認）':'まだ自動収集は実行されていません。GitHub Actionsを手動実行してください。'}catch(e){label.textContent='収集ファイルを取得できません（ローカル閲覧時は手動登録を利用できます）。'}keepTrackedCandidates();render()}
+$('add').onsubmit=e=>{e.preventDefault();const title=$('title').value.trim(),url=safeUrl($('url').value),p=$('amount').value;if(!url){alert('https:// で始まるURLを入力してください');return}const id='manual-'+Date.now().toString(36);user.manual.unshift({id,title,url,category:$('cat').value,source:'手動追加',published:new Date().toISOString().slice(0,10)});if(p!==''&&Number(p)>=0)user.points[id]=Math.floor(Number(p));save();e.target.reset();render()};
+$('export').onclick=()=>{const blob=new Blob([JSON.stringify(user,null,2)],{type:'application/json'}),u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download='otoku-hunter-records.json';a.click();setTimeout(()=>URL.revokeObjectURL(u),2000)};
+$('import').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const obj=JSON.parse(await f.text());if(!obj||typeof obj.states!=='object'||!Array.isArray(obj.manual))throw Error('format');if(!confirm('今の端末の記録を、読み込んだ記録で上書きしますか？'))return;user=readRecords(obj);keepTrackedCandidates();save();render()}catch{alert('記録ファイルを読み込めませんでした。')}finally{e.target.value=''}};
+['q','type','state'].forEach(id=>$(id).addEventListener('input',render));$('refresh').onclick=refresh;refresh();
+</script></body></html>
