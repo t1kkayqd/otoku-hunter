@@ -1,0 +1,53 @@
+name: Collect and publish candidates
+on:
+  schedule:
+    - cron: '17 22 * * *'
+  workflow_dispatch:
+concurrency:
+  group: otoku-hunter-pages
+  cancel-in-progress: false
+jobs:
+  collect:
+    if: github.ref_name == github.event.repository.default_branch
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Read configured RSS feeds
+        run: python otoku_hunter_v01/scripts/collect.py
+      - name: Commit changed candidate data
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add otoku_hunter_v01/data/leads.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Update public RSS candidates'
+            git push
+          fi
+      - name: Prepare public files
+        run: |
+          mkdir -p _site/data
+          cp otoku_hunter_v01/index.html _site/
+          cp otoku_hunter_v01/data/leads.json _site/data/
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+  deploy:
+    needs: collect
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
