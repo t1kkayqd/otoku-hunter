@@ -6,9 +6,12 @@
 <main class="wrap">
 <div id="case-list">
 <section class="panel">
- <h2>連続処理を試す</h2>
- <p class="muted">架空のアンケートと懸賞を、一覧に戻らず続けて処理できます。</p>
- <button type="button" class="primary" id="start-demo">連続処理開始</button>
+ <h2>連続処理</h2>
+ <p class="muted">手動登録した「未確認」「あとで見る」の案件を、一覧に戻らず順に処理できます。</p>
+ <div class="controls">
+  <button type="button" class="primary" id="start-queue">連続処理開始</button>
+  <button type="button" id="start-demo">デモを試す</button>
+ </div>
 </section>
 <div class="stats"><div class="stat"><span class="muted">収集候補</span><strong id="count">0</strong></div><div class="stat"><span class="muted">あとで見る</span><strong id="saved">0</strong></div><div class="stat"><span class="muted">獲得記録</span><strong id="earned">0 pt</strong></div></div>
 <div class="note"><b>重要：</b>自動収集は見出しによる「候補」抽出です。無料・応募資格・期限・獲得条件は未確認。必ず公式ページで確認してください。広告視聴の自動化、アンケートの代行回答、無断の自動応募は行いません。</div>
@@ -36,6 +39,29 @@
 </section>
 <section class="panel"><div class="controls" style="justify-content:space-between;align-items:center"><h2 style="margin:0">案件一覧</h2><div><button id="export">記録を保存</button> <label style="display:inline-block;cursor:pointer;border:1px solid #ccd5dd;padding:9px;border-radius:9px;background:white">記録を読込<input id="import" type="file" accept="application/json" style="display:none"></label></div></div></section><div id="results" class="results"></div><div class="footer">状態とポイント記録は、このブラウザ内にのみ保存。スマホとPC間では自動同期されません。共有端末での利用に注意。GitHub Pagesの公開サイトに個人情報を載せないでください。</div>
 </div>
+<section id="queue" class="panel" hidden aria-labelledby="queue-title">
+ <p class="muted">連続処理 · 手動登録案件</p>
+ <h2 id="queue-title" tabindex="-1"></h2>
+ <div id="queue-current">
+  <p class="muted" id="queue-progress"></p>
+  <p class="muted" id="queue-details" hidden></p>
+  <p><a id="queue-link" target="_blank" rel="noopener noreferrer">応募先を別タブで開く</a></p>
+  <p class="muted">回答や応募を済ませたら、このタブに戻って結果を記録してください。</p>
+  <div class="controls">
+   <button type="button" class="primary" id="queue-applied">応募済みにして次へ</button>
+   <button type="button" id="queue-skip">スキップして次へ</button>
+  </div>
+  <form id="queue-reward" style="margin-top:14px">
+   <label for="queue-points">獲得ポイント</label>
+   <div class="controls" style="margin-top:6px">
+    <input id="queue-points" type="number" min="0" step="1" required style="max-width:100%">
+    <button type="submit">獲得済みにして次へ</button>
+   </div>
+  </form>
+ </div>
+ <p id="queue-totals" hidden></p>
+ <button type="button" id="queue-close" style="margin-top:14px">一覧へ戻る</button>
+</section>
 <section id="demo" class="panel" hidden aria-labelledby="demo-title">
  <p class="muted">連続処理デモ · 架空の案件</p>
  <h2 id="demo-title" tabindex="-1"></h2>
@@ -113,6 +139,65 @@ $('demo-close').onclick=()=>{
 const safeUrl=s=>{try{const u=new URL(s);return u.protocol==='https:'?u.href:null}catch{return null}};
 const all=()=>[...user.manual,...base,...Object.values(user.kept)].filter((x,i,a)=>a.findIndex(y=>y.id===x.id)===i);
 const status=x=>user.states[x.id]||'未確認';
+let queueRun;
+
+function showQueueStep(){
+ const current=queueRun.items[queueRun.index];
+ $('queue-current').hidden=!current;
+ $('queue-totals').hidden=Boolean(current);
+ if(current){
+  const details=[
+   current.deadline&&'締切：'+current.deadline,
+   current.winners&&'当選人数：'+current.winners,
+   current.entryMethod&&'応募形式：'+current.entryMethod,
+  ].filter(Boolean);
+  $('queue-title').textContent=current.title;
+  $('queue-progress').textContent=`${queueRun.index+1} / ${queueRun.items.length}件`;
+  $('queue-details').textContent=details.join(' · ');
+  $('queue-details').hidden=!details.length;
+  $('queue-link').href=safeUrl(current.url);
+  $('queue-reward').reset();
+ }else{
+  $('queue-title').textContent='連続処理の結果';
+  $('queue-totals').textContent=queueRun.items.length
+   ? `処理済み ${queueRun.completed}件 / ${queueRun.items.length}件 · スキップ ${queueRun.index-queueRun.completed}件 · 獲得 ${queueRun.points.toLocaleString('ja-JP')} pt`
+   : '処理できる手動登録案件がありません。「自分で案件を追加」から登録できます。';
+ }
+ $('queue-title').focus();
+}
+
+function advanceQueue(result,points){
+ const current=queueRun.items[queueRun.index];
+ if(!current)return;
+ if(result){
+  recordStatus(current,result,points);
+  queueRun.completed++;
+  queueRun.points+=points??0;
+ }
+ queueRun.index++;
+ showQueueStep();
+}
+
+$('start-queue').onclick=()=>{
+ const items=user.manual.filter(item=>safeUrl(item.url)&&['未確認','あとで見る'].includes(status(item)));
+ queueRun={items,index:0,completed:0,points:0};
+ $('case-list').hidden=true;
+ $('queue').hidden=false;
+ showQueueStep();
+};
+$('queue-applied').onclick=()=>advanceQueue('応募済み');
+$('queue-skip').onclick=()=>advanceQueue();
+$('queue-reward').onsubmit=event=>{
+ event.preventDefault();
+ const points=$('queue-points').valueAsNumber;
+ if(Number.isSafeInteger(points)&&points>=0)advanceQueue('獲得済み',points);
+};
+$('queue-close').onclick=()=>{
+ $('queue').hidden=true;
+ $('case-list').hidden=false;
+ $('start-queue').focus();
+};
+
 function keepTrackedCandidates(){
  let changed=false;
  for(const x of base){
@@ -123,13 +208,15 @@ function keepTrackedCandidates(){
  if(changed)save();
 }
 function changeStatus(x,value){
- if(value==='獲得済み'){
-  const points=prompt('実際に獲得したポイント（数字、不明なら0）',user.points[x.id]||'0');
-  if(points===null)return;
-  const amount=Number(points);
-  if(!Number.isFinite(amount)||amount<0){alert('0以上の数字を入力してください');return}
-  user.points[x.id]=Math.floor(amount);
- }
+ if(value!=='獲得済み'){recordStatus(x,value);return}
+ const points=prompt('実際に獲得したポイント（数字、不明なら0）',user.points[x.id]||'0');
+ if(points===null)return;
+ const amount=Number(points);
+ if(!Number.isFinite(amount)||amount<0){alert('0以上の数字を入力してください');return}
+ recordStatus(x,value,Math.floor(amount));
+}
+function recordStatus(x,value,points){
+ if(points!==undefined)user.points[x.id]=points;
  user.states[x.id]=value;
  if(value==='未確認')delete user.kept[x.id];
  else if(!user.manual.some(item=>item.id===x.id))user.kept[x.id]=x;
