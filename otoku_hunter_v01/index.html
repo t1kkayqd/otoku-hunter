@@ -3,7 +3,14 @@
 <style>
 :root{font-family:system-ui,-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,sans-serif;color:#1e2b36;background:#f1f5f9}*{box-sizing:border-box}body{margin:0}.wrap{max-width:1040px;margin:auto;padding:24px 16px 80px}header{color:#fff;background:#132337;padding:24px 0}header .wrap{padding-top:0;padding-bottom:0}header h1{margin:0 0 8px;font-size:27px}header p{margin:0;color:#cbd5e1;font-size:14px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0}.stat,.panel,.item{background:#fff;border:1px solid #dce5ee;border-radius:14px;padding:16px;box-shadow:0 2px 8px #1b304309}.stat strong{display:block;font-size:26px}.muted{color:#627184;font-size:13px}.panel{margin-bottom:14px}h2{margin:0 0 12px;font-size:17px}.controls{display:flex;gap:8px;flex-wrap:wrap}input,select,button{font:inherit;border:1px solid #ccd5dd;border-radius:9px;padding:10px;background:#fff;min-height:42px}input[type=search]{flex:2;min-width:180px}select{flex:1;min-width:128px}button{cursor:pointer}button.primary{background:#146ea3;color:white;border-color:#146ea3}button:hover{filter:brightness(.97)}.results{display:grid;gap:12px}.item h3{margin:6px 0 10px;font-size:16px;line-height:1.5}.item a{color:#086c9c}.chips{display:flex;gap:6px;flex-wrap:wrap}.chip{background:#edf3f7;border-radius:100px;padding:4px 8px;font-size:11px;color:#475569}.item .actions{display:flex;gap:7px;margin-top:12px;flex-wrap:wrap}.item button{font-size:13px;padding:8px 10px;min-height:36px}.note{border-left:3px solid #e4a22a;padding:8px 12px;background:#fff8e6;font-size:13px;margin:14px 0}.mini{font-size:12px}.add-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.add-grid input,.add-grid select{width:100%}.footer{margin-top:18px;color:#586779;font-size:12px}.hidden{display:none}@media(max-width:600px){.stats{gap:8px}.stat{padding:11px}.stat strong{font-size:21px}.add-grid{grid-template-columns:1fr}.wrap{padding:14px 12px 60px}header h1{font-size:23px}}
 </style></head><body><header><div class="wrap"><h1>🎁 お得ハンター <small style="font-size:12px;font-weight:normal">v0.1</small></h1><p>案件探しを自動化。応募・回答は自分で判断。</p></div></header>
-<main class="wrap"><div class="stats"><div class="stat"><span class="muted">収集候補</span><strong id="count">0</strong></div><div class="stat"><span class="muted">あとで見る</span><strong id="saved">0</strong></div><div class="stat"><span class="muted">獲得記録</span><strong id="earned">0 pt</strong></div></div>
+<main class="wrap">
+<div id="case-list">
+<section class="panel">
+ <h2>連続処理を試す</h2>
+ <p class="muted">架空のアンケートと懸賞を、一覧に戻らず続けて処理できます。</p>
+ <button type="button" class="primary" id="start-demo">連続処理開始</button>
+</section>
+<div class="stats"><div class="stat"><span class="muted">収集候補</span><strong id="count">0</strong></div><div class="stat"><span class="muted">あとで見る</span><strong id="saved">0</strong></div><div class="stat"><span class="muted">獲得記録</span><strong id="earned">0 pt</strong></div></div>
 <div class="note"><b>重要：</b>自動収集は見出しによる「候補」抽出です。無料・応募資格・期限・獲得条件は未確認。必ず公式ページで確認してください。広告視聴の自動化、アンケートの代行回答、無断の自動応募は行いません。</div>
 <section class="panel"><h2>候補を探す</h2><div class="controls"><input id="q" type="search" placeholder="キーワードで絞り込む"><select id="type"><option value="">すべての種類</option><option>楽天ポイント</option><option>Vポイント</option><option>ポイント</option><option>懸賞</option><option>無料サンプル</option><option>キャンペーン</option><option>手動追加</option></select><select id="state"><option value="">すべての状態</option><option>未確認</option><option>あとで見る</option><option>応募済み</option><option>獲得済み</option><option>除外</option></select><button id="refresh">更新</button></div><div class="muted mini" id="updated" style="margin-top:10px"></div></section>
 <section class="panel">
@@ -27,13 +34,82 @@
   <button class="primary" style="margin-top:10px">追加</button>
  </form>
 </section>
-<section class="panel"><div class="controls" style="justify-content:space-between;align-items:center"><h2 style="margin:0">案件一覧</h2><div><button id="export">記録を保存</button> <label style="display:inline-block;cursor:pointer;border:1px solid #ccd5dd;padding:9px;border-radius:9px;background:white">記録を読込<input id="import" type="file" accept="application/json" style="display:none"></label></div></div></section><div id="results" class="results"></div><div class="footer">状態とポイント記録は、このブラウザ内にのみ保存。スマホとPC間では自動同期されません。共有端末での利用に注意。GitHub Pagesの公開サイトに個人情報を載せないでください。</div></main>
+<section class="panel"><div class="controls" style="justify-content:space-between;align-items:center"><h2 style="margin:0">案件一覧</h2><div><button id="export">記録を保存</button> <label style="display:inline-block;cursor:pointer;border:1px solid #ccd5dd;padding:9px;border-radius:9px;background:white">記録を読込<input id="import" type="file" accept="application/json" style="display:none"></label></div></div></section><div id="results" class="results"></div><div class="footer">状態とポイント記録は、このブラウザ内にのみ保存。スマホとPC間では自動同期されません。共有端末での利用に注意。GitHub Pagesの公開サイトに個人情報を載せないでください。</div>
+</div>
+<section id="demo" class="panel" hidden aria-labelledby="demo-title">
+ <p class="muted">連続処理デモ · 架空の案件</p>
+ <h2 id="demo-title" tabindex="-1"></h2>
+ <form id="demo-form">
+  <p id="demo-progress" class="muted"></p>
+  <div style="margin-bottom:14px">
+   <label for="demo-answer" id="demo-question"></label>
+   <select id="demo-answer" required style="display:block;width:100%;margin-top:6px"></select>
+  </div>
+  <div class="controls">
+   <button type="submit" class="primary">次へ</button>
+   <button type="button" id="demo-skip">スキップ</button>
+  </div>
+ </form>
+ <div id="demo-summary" hidden>
+  <p id="demo-totals"></p>
+  <p class="muted">ポイントはこのデモ内の集計です。</p>
+ </div>
+ <button type="button" id="demo-close" style="margin-top:14px">一覧へ戻る</button>
+</section>
+</main>
 <script>
 'use strict';
 const KEY='otoku-hunter-v1';let base=[],stamp='',user={states:{},points:{},manual:[],kept:{}};
 function readRecords(s){return {states:s.states||{},points:s.points||{},manual:s.manual||[],kept:s.kept||{}}}
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&typeof s==='object')user=readRecords(s)}catch{}
 const $=id=>document.getElementById(id);const save=()=>localStorage.setItem(KEY,JSON.stringify(user));
+const demoCases=[
+ {title:'飲み物についてのアンケート',question:'よく飲むものを選んでください。',choices:['お茶','コーヒー','水'],points:5},
+ {title:'文房具セットの懸賞',question:'応募する賞品を選んでください。',choices:['ノートセット','ペンセット'],points:0},
+ {title:'休日についてのアンケート',question:'休日の過ごし方を選んでください。',choices:['自宅で過ごす','外出する','日によって違う'],points:10},
+];
+let demoRun;
+
+function showDemoStep(){
+ const current=demoCases[demoRun.index];
+ $('demo-form').hidden=!current;
+ $('demo-summary').hidden=Boolean(current);
+ $('demo-title').textContent=current?.title||'連続処理の結果';
+ if(current){
+  $('demo-progress').textContent=`${demoRun.index+1} / ${demoCases.length}件 · ${current.points} デモpt`;
+  $('demo-question').textContent=current.question;
+  const placeholder=new Option('選択してください','');
+  $('demo-answer').replaceChildren(placeholder,...current.choices.map(choice=>new Option(choice)));
+  $('demo-answer').value='';
+ }else{
+  $('demo-totals').textContent=`処理済み ${demoRun.completed}件 / ${demoCases.length}件 · スキップ ${demoRun.index-demoRun.completed}件 · 獲得 ${demoRun.points} デモpt`;
+ }
+ $('demo-title').focus();
+}
+
+$('start-demo').onclick=()=>{
+ demoRun={index:0,completed:0,points:0};
+ $('case-list').hidden=true;
+ $('demo').hidden=false;
+ showDemoStep();
+};
+$('demo-form').onsubmit=event=>{
+ event.preventDefault();
+ if(!$('demo-answer').value)return;
+ demoRun.points+=demoCases[demoRun.index].points;
+ demoRun.completed++;
+ demoRun.index++;
+ showDemoStep();
+};
+$('demo-skip').onclick=()=>{
+ demoRun.index++;
+ showDemoStep();
+};
+$('demo-close').onclick=()=>{
+ $('demo').hidden=true;
+ $('case-list').hidden=false;
+ $('start-demo').focus();
+};
 const safeUrl=s=>{try{const u=new URL(s);return u.protocol==='https:'?u.href:null}catch{return null}};
 const all=()=>[...user.manual,...base,...Object.values(user.kept)].filter((x,i,a)=>a.findIndex(y=>y.id===x.id)===i);
 const status=x=>user.states[x.id]||'未確認';
