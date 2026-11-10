@@ -8,16 +8,45 @@ import hashlib
 import json
 import pathlib
 import re
+import unicodedata
 import urllib.request
 import xml.etree.ElementTree as ET
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CONFIG = json.loads((ROOT / 'sources.json').read_text(encoding='utf-8'))
 OUT = ROOT / 'data' / 'leads.json'
-KEYWORDS = ['無料', 'プレゼント', 'キャンペーン', '懸賞', 'サンプル', '抽選', 'ポイント', 'クーポン', 'モニター', 'ギフト券', '引換券', '応募']
 EXCLUDE = ['投資', '株式投資', 'ローン', '競馬', 'パチンコ', 'カジノ', '酒', 'ワイン', 'ウイスキー', 'ビール', 'たばこ', 'タバコ']
-RE = re.compile('|'.join(map(re.escape, KEYWORDS)))
 BAD = re.compile('|'.join(map(re.escape, EXCLUDE)))
+PURCHASE_REQUIRED = re.compile(
+    r'マストバイ|購入者(?:限定|対象)|(?:購入|お買い上げ|お買い物|注文|決済|支払い)で'
+    r'|(?:購入|有料(?:会員|登録|契約|プラン|サービス)).{0,12}(?:必須|が条件|限定|が対象)'
+    r'|(?:購入|注文)(?:いただいた|された|した)(?:方|人|お客様)'
+    r'|購入金額|円以上の(?:購入|お買い上げ|お買い物)|(?:送料|参加費|登録料)(?:が必要|有料)'
+    r'|(?:決済|支払い|お買い物|利用金額).{0,12}還元'
+)
+REWARD = r'(?:進呈|付与|プレゼント|獲得|もらえ|貯ま|たまる|当た|山分け|還元)'
+POINT_REWARD = re.compile(
+    rf'(楽天ポイント|(?<![a-z])Vポイント).{{0,16}}{REWARD}',
+    re.IGNORECASE,
+)
+SWEEPSTAKES = re.compile(
+    r'懸賞|プレゼント(?:キャンペーン|企画).{0,16}(?:開催|実施|応募|開始)'
+    r'|(?:抽選で|(?:合計|総勢)?[\d,]+名(?:様)?(?:に|へ)).{0,40}(?:当た|プレゼント|進呈|贈呈)'
+    r'|(?:応募|フォロー|リポスト|引用ポスト).{0,16}(?:で|すると).{0,35}(?:当た|プレゼント)'
+    r'|(?:当たる|当たります).{0,10}(?:キャンペーン|抽選|プレゼント|応募)'
+)
+
+
+def classify(title):
+    title = unicodedata.normalize('NFKC', title)
+    if BAD.search(title) or PURCHASE_REQUIRED.search(title):
+        return None
+    match = POINT_REWARD.search(title)
+    if match:
+        return '楽天ポイント' if match[1] == '楽天ポイント' else 'Vポイント'
+    if SWEEPSTAKES.search(title):
+        return '懸賞'
+    return None
 
 def val(el, tags):
     for t in tags:
@@ -50,7 +79,11 @@ def parse(xml):
 
 def collect():
     old = json.loads(OUT.read_text(encoding='utf-8')) if OUT.exists() else {'leads': []}
-    by_id = {x['id']: x for x in old.get('leads', [])}
+    by_id = {}
+    for item in old.get('leads', []):
+        category = classify(item['title'])
+        if category:
+            by_id[item['id']] = {**item, 'category': category}
     successes = 0
     for src in CONFIG['feeds']:
         try:
@@ -58,11 +91,12 @@ def collect():
             with urllib.request.urlopen(req, timeout=20) as r:
                 content = r.read(2_000_000)
             for v in parse(content):
-                if not RE.search(v['title']) or BAD.search(v['title']):
+                category = classify(v['title'])
+                if not category:
                     continue
                 ident = hashlib.sha256(v['url'].encode()).hexdigest()[:20]
                 if ident not in by_id:
-                    by_id[ident] = {'id': ident, **v, 'source': src['name'], 'category': classify(v['title']), 'state': '未確認'}
+                    by_id[ident] = {'id': ident, **v, 'source': src['name'], 'category': category, 'state': '未確認'}
             successes += 1
             print('OK', src['name'])
         except Exception as e:
@@ -72,11 +106,5 @@ def collect():
     data = sorted(by_id.values(), key=lambda v: v.get('published',''), reverse=True)[:400]
     OUT.write_text(json.dumps({'updated': dt.datetime.now(dt.timezone.utc).isoformat(), 'leads': data}, ensure_ascii=False, indent=2), encoding='utf-8')
     print('Candidates',len(data))
-
-def classify(t):
-    if any(x in t for x in ('ポイント', '還元')): return 'ポイント'
-    if any(x in t for x in ('サンプル','モニター','引換券')): return '無料サンプル'
-    if any(x in t for x in ('懸賞','抽選','プレゼント')): return '懸賞'
-    return 'キャンペーン'
 
 if __name__ == '__main__': collect()
